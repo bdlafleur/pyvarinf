@@ -89,7 +89,7 @@ def sub_prior_loss_NN(dico):
                      (std.pow(2) + mean.pow(2)) /
                      (2 * std_prior ** 2) - 1 / 2).sum()
         else:
-            loss += sub_prior_loss(p)
+            loss += sub_prior_loss_NN(p)
     return loss
 
 
@@ -299,7 +299,7 @@ class Variationalize(nn.Module):
         """
         if prior_type == 'gaussian':
             self._prior_loss_function = functools.partial(
-                sub_prior_loss,
+                sub_prior_loss_NN,
                 dico=self.dico)
         else:
             n_mc_samples = prior_parameters.pop("n_mc_samples")
@@ -337,7 +337,7 @@ class Variationalize(nn.Module):
     def forward(self, *inputs):
         def _epsilon_setting(name, p):  # pylint: disable=unused-argument
             if self.training:
-                return self.epsilon_setting(p.eps.data)
+                return self.epsilon_setting(p)
                 #return p.eps.data.normal_()
             return p.eps.data.zero_()
 
