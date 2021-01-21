@@ -17,7 +17,6 @@ VariationalParameter = namedtuple('VariationalParameter',
 
 def evaluate(variational_parameter):
     """ Evaluates the current value of a variational parameter.
-
     Returns mean + log(1 + e^rho) * eps
     :args variational_parameter: the variational parameter
     :returns: the value of the variational parameter
@@ -30,24 +29,20 @@ def evaluate(variational_parameter):
 
 def rebuild_parameters(dico, module, epsilon_setting):
     """ Rebuild parameters.
-
     Build the computational graph corresponding to
     the computations of the parameters of the given module,
     using the corresponding variational parameters in dico,
     and the rule used to sample epsilons. If the module has
     submodules, corresponding subcomputational graphs are also
     built.
-
     Typically, if a module has a parameter weight, weight should
     appear in dico, and the parameter will be rebuilt as
     module.weight = dico['weight'].mean + (1+dico['weight'].rho.exp()).log() *
             dico['weight'].eps
-
     :args dico: a 'tree' dictionnary that contains variational
     parameters for the current module, and subtrees for submodules
     :args module: the module whose parameters are to be rebuilt
     :args epsilon_settings: how epsilons ought to be drawn
-
     """
 
     for name, p in dico.items():
@@ -64,11 +59,8 @@ def rebuild_parameters(dico, module, epsilon_setting):
 
 def prior_std(p):
     """ Compute a reasonable prior standard deviation for parameter p.
-
     :args p: the parameter
-
     :return: the resulting std
-
     """
     stdv = 1
     if p.dim() > 1:
@@ -80,10 +72,10 @@ def prior_std(p):
     return stdv
 
 
-def sub_prior_loss(dico):
+def sub_prior_loss_NN(dico): 
+    # NN = Normal-Normal
     """ Compute the KL divergence between prior and parameters for
     all Variational Parameters in the tree dictionary dico.
-
     :args dico: tree dictionary
     :return: KL divergence between prior and current
     """
@@ -122,7 +114,6 @@ def sub_conjprior(dico, alpha_0, beta_0, mu_0, kappa_0):
     """ Compute an estimation of the KL divergence between the conjugate
     prior and parameters for all Variational Parameters in the tree
     dictionary dico.
-
     :args dico: tree dictionary
     :args alpha_0: hyperparameter of the conjugate prior
     :args beta_0: hyperparameter of the conjugate prior
@@ -154,7 +145,6 @@ def sub_conjpriorknownmean(dico, mean, alpha_0, beta_0):
     """ Compute an estimation of the KL divergence between the conjugate
     prior when the mean is known and parameters for all Variational
     Parameters in the tree dictionary dico.
-
     :args dico: tree dictionary
     :args mean: known mean for the conjugate prior
     :args alpha_0: hyperparameter of the conjugate prior
@@ -185,7 +175,6 @@ def sub_mixtgaussprior(dico, sigma_1, sigma_2, pi):
     More details on this prior and the notations can be found in :
     "Weight Uncertainty in Neural Networks" Blundell et al, 2015
     https://arxiv.org/pdf/1505.05424.pdf
-
     :args dico: tree dictionary
     :args sigma_1: std of the first gaussian in the mixture
     :args sigma_2: std of the second gaussian in the mixture
@@ -210,22 +199,24 @@ def sub_mixtgaussprior(dico, sigma_1, sigma_2, pi):
 
 class Variationalize(nn.Module):
     """ Build a Variational model over the model given as input.
-
     Variationalize changes all parameters of the given model
     to allow learning of a gaussian distribution over the
     parameters using Variational inference. For more information,
     see e.g. https://papers.nips.cc/paper/4329-practical-variational
     -inference-for-neural-networks.pdf.
-
     :args model: the model on which VI is to be performed
+    :args epsilon_setting: function drawing randomly its argument according to 
+        the centered and normalized distribution in the family of posteriors
     :args zero_mean: if True, sets initial mean to 0, else
         keep model initial mean
     :args learn_mean: if True, learn the posterior mean
     :args learn_rho: if True, learn the posterior rho
     """
-    def __init__(self, model, zero_mean=True, learn_mean=True, learn_rho=True):
+    def __init__(self, model, epsilon_setting, sub_prior_loss, \
+            zero_mean=True, learn_mean=True, learn_rho=True):
         super().__init__()
         self.model = model
+        self.epsilon_setting = epsilon_setting
 
         self.dico = OrderedDict()
         self._variationalize_module(self.dico, self.model, '', zero_mean,
@@ -276,7 +267,6 @@ class Variationalize(nn.Module):
 
     def set_prior(self, prior_type, **prior_parameters):
         """ Change the prior to be used.
-
         Available priors are 'gaussian', 'conjugate', 'mixtgauss' and
         'conjugate_known_mean'. For each prior, you must
         specify the corresponding parameter:
@@ -347,7 +337,8 @@ class Variationalize(nn.Module):
     def forward(self, *inputs):
         def _epsilon_setting(name, p):  # pylint: disable=unused-argument
             if self.training:
-                return p.eps.data.normal_()
+                return self.epsilon_setting(p.eps.data)
+                #return p.eps.data.normal_()
             return p.eps.data.zero_()
 
         rebuild_parameters(self.dico, self.model, _epsilon_setting)
@@ -360,13 +351,11 @@ class Variationalize(nn.Module):
 
 class Sample(nn.Module):
     """ Utility to sample a single model from a Variational Model.
-
     Sample is a decorator that wraps a variational model, sample
     a model from the current parameter distribution and make the
     model usable as any other pytorch model. The sample can be
     redrawn using the draw() method. Draw needs to be called
     once before the model can be used.
-
     :args var_model: Variational model from which the sample models
     are to be drawn
     """
