@@ -212,7 +212,7 @@ class Variationalize(nn.Module):
     :args learn_mean: if True, learn the posterior mean
     :args learn_rho: if True, learn the posterior rho
     """
-    def __init__(self, model, epsilon_setting, sub_prior_loss, \
+    def __init__(self, model, epsilon_setting, sub_prior_loss = None, \
             zero_mean=True, learn_mean=True, learn_rho=True):
         super().__init__()
         self.model = model
@@ -221,9 +221,11 @@ class Variationalize(nn.Module):
         self.dico = OrderedDict()
         self._variationalize_module(self.dico, self.model, '', zero_mean,
                                     learn_mean, learn_rho)
+        """
         self._prior_loss_function = functools.partial(
             sub_prior_loss,
             dico=self.dico)
+        """
 
     def _variationalize_module(self, dico, module, prefix, zero_mean,
                                learn_mean, learn_rho):
